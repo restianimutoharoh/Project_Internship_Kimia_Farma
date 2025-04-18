@@ -1,35 +1,58 @@
-WITH KIMIA_FARMA AS (
-  SELECT 
-  f.transaction_id, 
-  f.date,
-  i.branch_id,
-  k.branch_name, 
-  p.product_id,
-  p.product_name, 
-  f.customer_name, 
-  k.kota, 
-  k.provinsi, 
-  k.rating as branch_rating, 
-  f.rating as transaction_rating, 
-  p.price as actual_price, 
-  f.discount_percentage as discount, 
-  f.price - f.discount_percentage as net_sales, 
-  SUM(f.price) - COUNT(DISTINCT f.price)* COUNT(DISTINCT p.product_id) as net_profit, 
-  CASE
-  WHEN f.price > 500000 THEN '30%'
-  WHEN f.price > 300000 AND f.price < 500000 THEN '25%'
-  WHEN f.price > 100000 AND f.price < 300000 THEN '20%'
-  WHEN f.price > 50000 AND f.price < 100000 THEN '15%'
+WITH KIMIA_FARMA_1 AS (
+  SELECT
+  f.transaction_id as transaction,
+  f.date as date,
+  k.branch_id as branch_id,
+  k.branch_name as branch_name,
+  k.kota as city,
+  k.provinsi as province,
+  k.rating as branch_rating,
+  f.rating as transaction_rating,
+  f.customer_name as customer_name,
+  f.discount_percentage as discount,
+  f.price as price,
+  f.price - f.discount_percentage as net_sales
+  FROM `my_project.kf_kantor_cabang` as k
+  LEFT JOIN `my_project.kf_final_transaction` as f  
+  ON k.branch_id = f.branch_id
+),
+KIMIA_FARMA_2 AS (
+  SELECT
+  i.branch_id as branch_id,
+  p.product_id as product_id,
+  p.product_name as product_name,
+  p.price as actual_price,
+  SUM(p.price) + (COUNT(DISTINCT i.product_id) + COUNT(DISTINCT i.opname_stock)) - SUM(i.opname_stock) as cogs
+  FROM `my_project.kf_inventory` as i  
+  LEFT JOIN `my_project.kf_product` as p  
+  ON i.product_id = p.product_id
+  GROUP BY 1,2,3,4
+)
+SELECT
+KIMIA_FARMA_1.transaction,
+KIMIA_FARMA_1.date,
+KIMIA_FARMA_1.branch_id,
+KIMIA_FARMA_1.branch_name,
+KIMIA_FARMA_1.customer_name,
+KIMIA_FARMA_2.product_id,
+KIMIA_FARMA_2.product_name,
+KIMIA_FARMA_1.city,
+KIMIA_FARMA_1.province,
+KIMIA_FARMA_1.branch_rating,
+KIMIA_FARMA_1.transaction_rating,
+KIMIA_FARMA_1.discount,
+KIMIA_FARMA_2.actual_price,
+KIMIA_FARMA_1.net_sales,
+SUM(KIMIA_FARMA_1.price) - SUM(KIMIA_FARMA_2.cogs) as net_profit,
+CASE
+  WHEN KIMIA_FARMA_1.price > 500000 THEN '30%'
+  WHEN KIMIA_FARMA_1.price > 300000 AND KIMIA_FARMA_1.price < 500000 THEN '25%'
+  WHEN KIMIA_FARMA_1.price > 100000 AND KIMIA_FARMA_1.price < 300000 THEN '20%'
+  WHEN KIMIA_FARMA_1.price > 50000 AND KIMIA_FARMA_1.price < 100000 THEN '15%'
   ELSE '10%'
   END AS persentase_gross_laba
-  FROM `rakamin_project.kf_final_transaction` as f  
-  LEFT JOIN `rakamin_project.kf_kantor_cabang - kf_kantor_cabang` as k  
-  ON f.branch_id = k.branch_id 
-  LEFT JOIN `rakamin_project.kf_inventory` as i  
-  ON k.branch_id = i.branch_id
-  LEFT JOIN `rakamin_project.kf_product` as p  
-  ON i.product_id = p.product_id 
-  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,16
-)
-SELECT * 
-FROM KIMIA_FARMA
+FROM KIMIA_FARMA_1
+JOIN KIMIA_FARMA_2
+ON KIMIA_FARMA_1.branch_id = KIMIA_FARMA_2.branch_id
+GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,16
+ORDER BY 15 DESC;
